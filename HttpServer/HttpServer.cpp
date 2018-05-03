@@ -47,7 +47,7 @@ void MyHttpServerHandler(struct evhttp_request* req, void* arg)
     int64_t uLength;
     File.GetSize(local, &uLength);
     char szLength[32];
-    _itoa(uLength, szLength, 10);
+    _i64toa(uLength, szLength, 10);
     cout <<"FileSize:"<< uLength << endl;
     evbuffer_expand(buf, uLength);
     //回复给客户端
