@@ -7,7 +7,9 @@
 #include <iostream>
 #include <CFileIO.h>
 #include <stdio.h>
+#include <MSocket.h>
 using namespace std;
+MSocket Sock;
 CFileIO File;
 #define BUFFER_SIZE 1024*1024
 bool startHttpServer(const char *ip, int port, void(*cb)(struct evhttp_request *, void *), void *arg)
@@ -15,12 +17,14 @@ bool startHttpServer(const char *ip, int port, void(*cb)(struct evhttp_request *
     //创建event_base和evhttp
     event_base* base = event_base_new();
     evhttp* http_server = evhttp_new(base);
-    if (!http_server) {
+    if (!http_server)
+    {
         return false;
     }
     //绑定到指定地址上
     int ret = evhttp_bind_socket(http_server, ip, port & 0xFFFF);
-    if (ret != 0) {
+    if (ret != 0)
+    {
         return false;
     }
     //设置事件处理函数
@@ -32,25 +36,34 @@ bool startHttpServer(const char *ip, int port, void(*cb)(struct evhttp_request *
 }
 void MyHttpServerHandler(struct evhttp_request* req, void* arg)
 {
-    //创建要使用的buffer对象
+    struct evkeyvalq *Req_Header;
+    Req_Header=evhttp_request_get_input_headers(req);  //request头
     evbuffer* buf = evbuffer_new();
     char* buffer=new char[BUFFER_SIZE];
-    //char buffer[BUFFER_SIZE];
     char local[4096];
     memset(buffer, 0, BUFFER_SIZE);
     memset(local, 0, 4096);
     local[0] = '.';
-    //获取请求的URI
-    const char* uri = (char*)evhttp_request_get_uri(req);
+    const char* uri = (char*)evhttp_request_get_uri(req);   //请求的uri
+    cout << "uri:"<<uri << endl;
     strcat(local, uri);
     File.Read(local, buffer, 0, BUFFER_SIZE);
     int64_t uLength;
     File.GetSize(local, &uLength);
     char szLength[32];
     _i64toa(uLength, szLength, 10);
-    cout <<"FileSize:"<< uLength << endl;
-    evbuffer_expand(buf, uLength);
+    evbuffer_expand(buf, uLength);   //增大缓冲区
     //回复给客户端
+
+    for (evkeyval* header = Req_Header->tqh_first; header; header = header->next.tqe_next)
+    {
+        //if (_stricmp(header->key,"content-type")==0)
+        //{
+            printf(" %s: %s\n", header->key, header->value);
+        //}
+        
+    }
+
     evhttp_add_header(req->output_headers,"Content-Length", szLength);
     //evhttp_add_header(req->output_headers, "Content-Type", "application/json");
     //if (strcmp(uri,"/about.html")!=0)
@@ -60,19 +73,36 @@ void MyHttpServerHandler(struct evhttp_request* req, void* arg)
     evbuffer_add(buf, buffer, uLength);
     //evbuffer_add_printf(buf, buffer);
     evhttp_send_reply(req, HTTP_OK, "OK", buf);
+    delete[] buffer;
     evbuffer_free(buf);
 }
+
+
+//
+//void MyHttpServerHandler(struct evhttp_request* req, void* arg)
+//{
+//    struct evkeyvalq *Header;
+//
+//    //创建要使用的buffer对象
+//    evbuffer* buf = evbuffer_new();
+//    const char* uri = (char*)evhttp_request_get_uri(req);
+//    cout << "uri:" << uri << endl;
+//    //char Data[2048];
+//    //memset(Data, 0, 2048);
+//    //evbuffer_copyout(req->input_buffer, Data, 50);    //request header
+//    //cout << "Data:" << Data << endl;
+//    Header = evhttp_request_get_input_headers(req);
+//    for (evkeyval* header = Header->tqh_first; header; header = header->next.tqe_next)
+//    {
+//        printf(" %s: %s\n", header->key, header->value);
+//    }
+//    evbuffer_add_printf(buf, "hello");
+//    evhttp_send_reply(req, HTTP_OK, "OK", buf);
+//    evbuffer_free(buf);
+//}
+
 int main()
 {
-    //Windows 平台套接字库的初始化
-#ifdef WIN32
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-#endif
-    //启动服务在地址 127.0.0.1:9001 上
     startHttpServer("0.0.0.0", 9001, MyHttpServerHandler, NULL);
-#ifdef WIN32
-    WSACleanup();
-#endif
     return 0;
 }
